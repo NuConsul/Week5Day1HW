@@ -1,0 +1,2 @@
+When you attempt to call startService() when your application is not in the foreground an illegal state exception is thrown.
+This means essentially if your application is not visible you can no longer use the startService() method.
