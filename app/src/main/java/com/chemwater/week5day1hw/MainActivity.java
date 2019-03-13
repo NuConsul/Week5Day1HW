@@ -10,15 +10,35 @@ import android.content.ContentResolver;
 import android.database.Cursor;
 import android.widget.ListView;
 
-public class MainActivity extends AppCompatActivity {
+import android.os.IBinder;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.MediaController.MediaPlayerControl;
+
+
+
+
+public class MainActivity extends AppCompatActivity implements MediaPlayerControl {
 
     private ArrayList<Song> songList;
     private ListView songView;
 
+    private MusicService musicSrv;
+    private Intent playIntent;
+    private boolean musicBound=false;
+
+    private MusicController controller ;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        super.onCreate(savedInstanceState) ;
+        setContentView(R.layout.activity_main) ;
+
 
         songView = (ListView)findViewById(R.id.song_list);
         songList = new ArrayList<Song>();
@@ -31,7 +51,65 @@ public class MainActivity extends AppCompatActivity {
         SongAdapter songAdt = new SongAdapter(this, songList);
         songView.setAdapter(songAdt);
 
+
+        setController();
     }
+
+
+    //connect to the service
+    private ServiceConnection musicConnection = new ServiceConnection(){
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            MusicService.MusicBinder binder = (MusicService.MusicBinder)service;
+            //get service
+            musicSrv = binder.getService();
+            //pass list
+            musicSrv.setList(songList);
+            musicBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            musicBound = false;
+        }
+    };
+
+    public void songPicked(View view){
+        musicSrv.setSong(Integer.parseInt(view.getTag().toString()));
+        musicSrv.playSong();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        //menu item selected
+        switch (item.getItemId()) {
+            case R.id.action_shuffle:
+                //shuffle
+                break;
+            case R.id.action_end:
+                stopService(playIntent);
+                musicSrv=null;
+                System.exit(0);
+                break;
+        }
+        return super.onOptionsItemSelected(item);
+
+    }
+
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if(playIntent==null){
+            playIntent = new Intent(this, MusicService.class);
+            bindService(playIntent, musicConnection, Context.BIND_AUTO_CREATE);
+            startService(playIntent);
+        }
+
+    }
+
+
 
 
 
@@ -60,4 +138,45 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
+
+
+    private void setController(){
+        //set the controller up
+        controller = new MusicController(this);
+        controller.setPrevNextListeners(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                playNext();
+            }
+        }, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                playPrev();
+            }
+        });
+
+
+        controller.setMediaPlayer(this);
+        controller.setAnchorView(findViewById(R.id.song_list));
+        controller.setEnabled(true);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    @Override
+    protected void onDestroy() {
+        stopService(playIntent);
+        musicSrv=null;
+        super.onDestroy();
+    }
+
 }
